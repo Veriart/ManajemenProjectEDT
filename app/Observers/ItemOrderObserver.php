@@ -38,11 +38,31 @@ class ItemOrderObserver
     private function updatePurchaseOrderPrice(ItemOrder $itemOrder): void
     {
         $purchaseOrder = $itemOrder->purchaseOrder;
+
         if ($purchaseOrder) {
+            // Hitung total price dari semua item order
             $totalPrice = $purchaseOrder->itemOrders()->sum('total');
-            $purchaseOrder->update(['price' => $totalPrice]);
-            
-            // Update project calculations if this PO is linked to a project
+
+            // Ambil discount dan sales_tax dari purchase order
+            $discount  = $purchaseOrder->discount ?? 0;
+            $salesTax  = $purchaseOrder->sales_tax ?? 0;
+
+            // Hitung subtotal setelah diskon
+            $subtotal = max($totalPrice - $discount, 0);
+
+            // Hitung tax (dari persentase sales_tax)
+            $tax = $subtotal * ($salesTax / 100);
+
+            // Hitung final include tax
+            $incTax = $subtotal + $tax;
+
+            // Update field di purchase order
+            $purchaseOrder->update([
+                'price'    => $totalPrice,
+                'inc_tax'  => $incTax,
+            ]);
+
+            // Update project calculations jika ada
             if ($purchaseOrder->project_id) {
                 $project = Project::find($purchaseOrder->project_id);
                 if ($project) {

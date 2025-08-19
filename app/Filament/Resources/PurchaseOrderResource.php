@@ -218,29 +218,85 @@ class PurchaseOrderResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('price')
                             ->label('Price')
-                            ->numeric()
                             ->prefix('Rp ')
                             ->readOnly()
                             ->default(0)
-                            ->dehydrated(),
+                            ->dehydrated()
+                            ->afterStateHydrated(
+                                fn($component, $state) =>
+                                $component->state(
+                                    $state ? number_format((float) $state, 0, ',', '.') : 0
+                                )
+                            )
+                            ->dehydrateStateUsing(
+                                fn($state) =>
+                                (int) str_replace('.', '', $state)
+                            ),
+
                         Forms\Components\TextInput::make('sales_tax')
                             ->label('Sales Tax')
-                            ->numeric()
                             ->suffix('%')
                             ->default(11)
-                            ->required(),
+                            ->required()
+                            ->numeric()
+                            ->live(debounce: 500)
+                            ->afterStateUpdated(function ($state, $set, $get) {
+                                $price    = (int) str_replace('.', '', $get('price')) ?: 0;
+                                $discount = (int) str_replace('.', '', $get('discount')) ?: 0;
+
+                                $subtotal = max($price - $discount, 0); // jangan sampai negatif
+                                $tax      = ($subtotal * ((float) $state / 100));
+                                $total    = $subtotal + $tax;
+
+                                $set('inc_tax', number_format($total, 0, ',', '.'));
+                            }),
+
                         Forms\Components\TextInput::make('inc_tax')
                             ->label('Include Tax')
-                            ->numeric()
-                            ->readOnly()
                             ->prefix('Rp ')
+                            ->readOnly()
                             ->default(0)
-                            ->dehydrated(),
+                            ->dehydrated()
+                            ->afterStateHydrated(
+                                fn($component, $state) =>
+                                $component->state(
+                                    $state ? number_format((float) $state, 0, ',', '.') : 0
+                                )
+                            )
+                            ->dehydrateStateUsing(
+                                fn($state) =>
+                                (int) str_replace('.', '', $state)
+                            ),
+
                         Forms\Components\TextInput::make('discount')
                             ->label('Discount')
-                            ->numeric()
                             ->prefix('Rp ')
-                            ->default(0),
+                            ->default(0)
+                            ->live(debounce: 500)
+                            ->afterStateHydrated(
+                                fn($component, $state) =>
+                                $component->state(
+                                    $state ? number_format((float) $state, 0, ',', '.') : 0
+                                )
+                            )
+                            ->dehydrateStateUsing(
+                                fn($state) =>
+                                (int) str_replace('.', '', $state)
+                            )
+                            ->afterStateUpdated(function ($state, $set, $get, $component) {
+                                $discount = (int) str_replace('.', '', $state) ?: 0;
+                                $component->state(number_format($discount, 0, ',', '.'));
+
+                                $price    = (int) str_replace('.', '', $get('price')) ?: 0;
+                                $salesTax = (float) $get('sales_tax') ?: 0;
+
+                                $subtotal = max($price - $discount, 0);
+                                $tax      = ($subtotal * ($salesTax / 100));
+                                $total    = $subtotal + $tax;
+
+                                $set('inc_tax', number_format($total, 0, ',', '.'));
+                            }),
+
                     ]),
                 Forms\Components\Select::make('payment_terms')
                     ->options([

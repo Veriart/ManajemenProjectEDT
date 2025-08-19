@@ -34,32 +34,67 @@ class ItemOrdersRelationManager extends RelationManager
                     ->required(),
                 Forms\Components\TextInput::make('price')
                     ->label('Price')
-                    ->numeric()
                     ->prefix('Rp ')
                     ->required()
-                    ->reactive()
-                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                        $price = (float) str_replace(['Rp ', '.', ','], ['', '', '.'], $state);
-                        $qty = (float) $get('qty') ?: 0;
-                        $set('total', $price * $qty);
+                    ->live(debounce: 500)
+                    // format ribuan saat edit form dibuka
+                    ->afterStateHydrated(
+                        fn($component, $state) =>
+                        $component->state(
+                            $state ? number_format((float) $state, 0, ',', '.') : null
+                        )
+                    )
+                    // simpan ke DB dalam bentuk integer
+                    ->dehydrateStateUsing(
+                        fn($state) =>
+                        (int) str_replace('.', '', $state)
+                    )
+                    // auto-format ribuan + hitung total ketika user ubah harga
+                    ->afterStateUpdated(function ($state, $set, $get, $component) {
+                        if (blank($state)) return;
+
+                        $clean = (int) str_replace('.', '', $state);
+                        $component->state(number_format($clean, 0, ',', '.'));
+
+                        $qty   = (int) $get('qty') ?: 0;
+                        $total = $clean * $qty;
+
+                        // set total dengan format ribuan langsung
+                        $set('total', number_format($total, 0, ',', '.'));
                     }),
+
                 Forms\Components\TextInput::make('qty')
                     ->label('Quantity')
                     ->numeric()
                     ->required()
-                    ->reactive()
+                    ->live(debounce: 500)
                     ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                        $price = (float) str_replace(['Rp ', '.', ','], ['', '', '.'], $get('price'));
-                        $qty = (float) $state ?: 0;
-                        $set('total', $price * $qty);
+                        if ($state === null || $state === '') return;
+
+                        $price = (int) str_replace('.', '', $get('price'));
+                        $qty   = (int) $state ?: 0;
+                        $total = $price * $qty;
+
+                        // set total dengan format ribuan langsung
+                        $set('total', number_format($total, 0, ',', '.'));
                     }),
+
                 Forms\Components\TextInput::make('total')
                     ->label('Total')
-                    ->numeric()
                     ->prefix('Rp ')
                     ->disabled()
                     ->dehydrated()
-                    ->formatStateUsing(fn($state) => number_format((float) $state, 0, ',', '.')),
+                    // pastikan tampil terformat kalau dari DB
+                    ->afterStateHydrated(
+                        fn($component, $state) =>
+                        $component->state(
+                            $state ? number_format((float) $state, 0, ',', '.') : null
+                        )
+                    )
+                    ->dehydrateStateUsing(
+                        fn($state) =>
+                        (int) str_replace('.', '', $state)
+                    ),
             ]);
     }
     public function table(Table $table): Table
@@ -71,7 +106,7 @@ class ItemOrdersRelationManager extends RelationManager
                     ->sortable(),
                 TextColumn::make('type')
                     ->default('Material')
-                    ->formatStateUsing(fn ($state) => match ($state) {
+                    ->formatStateUsing(fn($state) => match ($state) {
                         'Material' => 'Material',
                         'Service' => 'Service',
                         default => 'Material'

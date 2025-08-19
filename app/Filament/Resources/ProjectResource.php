@@ -43,7 +43,7 @@ class ProjectResource extends Resource
                     ->required()
                     ->afterStateHydrated(function (callable $set) {
                         // Get year (2 digits) and month (2 digits)
-                        $year = date('y'); 
+                        $year = date('y');
                         $month = date('m');
 
                         // Count data for current month and year
@@ -117,7 +117,7 @@ class ProjectResource extends Resource
                 DatePicker::make('end_date'),
                 Select::make('status')
                     ->options([
-                        'Pending' => 'Pending', 
+                        'Pending' => 'Pending',
                         'Preparation' => 'Preparation',
                         'Process' => 'Process',
                         'BAST' => 'BAST',
@@ -129,25 +129,33 @@ class ProjectResource extends Resource
                 Forms\Components\Grid::make(4)
                     ->schema([
                         TextInput::make('cost')
-                            ->numeric()
-                            ->prefix('Rp')
+                            ->prefix('Rp ')
                             ->default(0)
-                            ->readOnly(),
+                            ->readOnly()
+                            ->dehydrated(false) // jangan simpan ke DB dari sini
+                            ->formatStateUsing(fn($state) => $state !== null ? number_format((float) $state, 0, ',', '.') : '0'),
+
                         TextInput::make('remaining_invoice')
-                            ->numeric()
-                            ->prefix('Rp')
+                            ->prefix('Rp ')
                             ->default(0)
-                            ->readOnly(),
+                            ->readOnly()
+                            ->dehydrated(false)
+                            ->formatStateUsing(fn($state) => $state !== null ? number_format((float) $state, 0, ',', '.') : '0'),
+
                         TextInput::make('expenses')
-                            ->numeric()
-                            ->prefix('Rp')
+                            ->prefix('Rp ')
                             ->default(0)
-                            ->readOnly(),
+                            ->readOnly()
+                            ->dehydrated(false)
+                            ->formatStateUsing(fn($state) => $state !== null ? number_format((float) $state, 0, ',', '.') : '0'),
+
                         TextInput::make('net_cost')
-                            ->numeric()
-                            ->prefix('Rp')
+                            ->prefix('Rp ')
                             ->default(0)
-                            ->readOnly(),
+                            ->readOnly()
+                            ->dehydrated(false)
+                            ->formatStateUsing(fn($state) => $state !== null ? number_format((float) $state, 0, ',', '.') : '0'),
+
                     ]),
                 Textarea::make('description')
                     ->maxLength(65535)
